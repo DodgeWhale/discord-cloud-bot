@@ -1,19 +1,26 @@
 {
+	"compileOnSave": true,
 	"compilerOptions": {
-		"target": "es2016",
-		"module": "commonjs",
+        "allowSyntheticDefaultImports": true,
+		"noImplicitAny": true,
+		"lib": [
+        	"es5",
+			"es6",
+			"dom"
+        ],
+		"module": "es6",
+		"moduleResolution": "node",
+		"target": "es6",
 		"allowJs": false,
+		"sourceMap": true,
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"baseUrl": "./src",
 		"paths": {
-			"app": [ "app.ts" ]
+			"server/*": ["server/*"],
+			"client/*": ["client/*"],
+			"app": ["server/app.ts"],
+			"bot": ["server/bot.ts"]
 		},
-		"lib": [ "es6" ],
-		"outDir": "deploy/",
-	},
-	"include": [
-		"src/",
-		"*.ts"
-	]
+	}
 }
