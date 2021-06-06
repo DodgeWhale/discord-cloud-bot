@@ -2,7 +2,7 @@ import { Message } from 'discord.js';
 
 import { bot } from 'server/bot';
 
-const prefix = process.env.PREFIX || '/';
+const prefix = process.env.COMMAND_PREFIX || '/';
 
 async function handleDirectMessage(message: Message) {
 
