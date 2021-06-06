@@ -1,0 +1,5 @@
+cron:
+- description: "Check bot's active connections"
+  url: /tasks/inactvity
+  target: beta
+  schedule: every 24 hours

@@ -1,6 +1,6 @@
 import { Message } from 'discord.js';
 
-import { joinChannel } from 'server/bot';
+import { getNewOrExistingConnection } from 'server/bot';
 
 import { CommandMeta, Command } from '../command.interface';
 
@@ -13,7 +13,7 @@ const start: CommandMeta = {
 
 		if (channel) {
 			try {
-				const connection = await joinChannel(channel);
+				const connection = await getNewOrExistingConnection(channel);
 
 				if (!connection) {
 					message.channel.send('Bot already connected.');
@@ -21,10 +21,10 @@ const start: CommandMeta = {
 				}
 			}
 			catch (error) {
-				message.channel.send('Unable to join voice channel.');
+				message.channel.send('Unable to join voice channel :thinking:');
 			}
 		} else {
-			message.channel.send('You need to join a voice channel first!');
+			message.channel.send('You need to join a voice channel first! :face_with_monocle:');
 		}
 	}
 }

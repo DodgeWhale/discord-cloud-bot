@@ -24,15 +24,21 @@ export default async function handleMessage(message: Message) {
 	// Check message is type: command
 	if (!message.content.startsWith(prefix)) return;
 
-	const args = message.content.slice(prefix.length).trim().split(/ +/);
-	const command = args.shift().toLowerCase();
+	const args = message.content.toLowerCase()
+		.slice(prefix.length)
+		.trim().split(/ +/);
 
-	if (!bot.commands.has(command)) return;
+	const commandName = args.shift();
+
+	const command = bot.commands.get(commandName)
+		|| bot.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+	if (!command) return;
 
 	try {
-		await Promise.resolve(bot.commands.get(command).execute(message, args));
+		await Promise.resolve(command.execute(message, args));
 	} catch (error) {
-		console.error(error);
-		message.reply('there was an error trying to execute that command!');
+		console.error(`Error executing command '${commandName}: ${error}`);
+		await message.reply(`Unable to execute command :flushed:`);
 	}
 };

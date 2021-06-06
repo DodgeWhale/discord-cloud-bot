@@ -7,7 +7,12 @@ import { voiceChannelExists } from 'server/bot';
 
 import { badRequest, success } from 'server/controller';
 
-const tokenSecret = process.env.TOKEN_SECRET || 'secret007';
+const _defaultSecret = 'secret007';
+const tokenSecret = process.env.TOKEN_SECRET || _defaultSecret;
+
+if (tokenSecret === _defaultSecret) {
+	console.warn('Using default secret for signing JWTs!');
+}
 
 const signOptions: SignOptions = {
 	algorithm: 'HS256',

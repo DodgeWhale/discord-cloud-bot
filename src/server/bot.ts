@@ -33,7 +33,7 @@ const bot = new DodgeBot();
 export { bot };
 //#endregion
 
-let joinLog: Map<string, number> = new Map();
+let activityLog: Map<string, number> = new Map();
 
 bot.once('ready', () => {
 	console.log(`Logged in as ${bot.user.tag}!`);
@@ -50,27 +50,52 @@ export function voiceChannelExists(channelId: string) {
 	return true;
 }
 
-export function isChannelActive() {
-	// TODO
+//#region Process env variables
+if (!process.env.TOKEN) {
+	console.error('Invalid Discord Bot access token! (env vars)');
+	process.exit(0);
+}
+
+// 30 minutes by default
+// Custom timeouts are converted to minutes
+let channelTimeout = Number(process.env.CHANNEL_TIMEOUT) * 60 * 1000 || null;
+
+if (!channelTimeout) {
+	channelTimeout = 1800 * 1000;
+	console.log('Using default channel timeout length: 30 minutes');
+}
+//#endregion
+
+export function isConnectionActive(id: string) {
+	const logEntry = activityLog.get(id);
+	if (logEntry == null) return false;
+
+	let elapsed = Date.now() - logEntry;
+	if (elapsed >= channelTimeout) {
+		// Channel has reached the timeout threshold
+		return false;
+	}
+
+	// Channel is still active
+	return true;
 }
 
 export function getConnection(id: string): VoiceConnection {
 	return bot.voice.connections.get(id);
 }
 
-export async function joinChannel(channel: VoiceChannel) {
+export async function getNewOrExistingConnection(channel: VoiceChannel): Promise<[boolean, VoiceConnection]> {
 	const { id, name } = channel;
 
-	let existingConn = getConnection(id);
-	if (existingConn) return existingConn;
+	let connection = getConnection(id) || null;
+	if (connection) return [false, connection];
 
 	try {
-		let conn = await channel.join();
+		connection = await channel.join();
+		activityLog.set(id, Date.now());
 
-		joinLog.set(id, Date.now());
-
-		console.info(`Joined channel: ${name} (${id})`);
-		return conn;
+		console.info(`Joined voice channel: ${name} (${id})`);
+		return [true, connection];
 	}
 	catch (error) {
 		console.error(`Unable to join channel: ${name} (${id})`);
@@ -78,11 +103,12 @@ export async function joinChannel(channel: VoiceChannel) {
 	}
 }
 
-const baseAudioPath = process.env.CLIPS_FOLDER || '../audio/';
+export const baseAudioPath = path.join(__dirname, process.env.CLIPS_FOLDER || '../audio/');
+
 export function getFilePath(file: string) {
 	if (!file) throw new Error('Invalid audio file name');
 
-	return path.join(__dirname, baseAudioPath + file);
+	return path.join(baseAudioPath, file);
 }
 
 export interface AudioRequest {
@@ -92,15 +118,21 @@ export interface AudioRequest {
 	seek?: number
 }
 
-// TODO make async to speed up response to POST:/audio ?
 export async function playAudio(request: AudioRequest) {
 	const { file, volume } = request;
 
 	try {
 		const channel = bot.channels.cache.get(request.voiceChannel) as VoiceChannel;
 
+		if (!channel || channel.members.size === 0) return false;
+
 		// Get existing, or start a new connection
-		const connection = await joinChannel(channel);
+		const [createdNow, connection] = await getNewOrExistingConnection(channel);
+
+		if (!createdNow) {
+			// Update last activity to prevent connection cron timeout
+			activityLog.set(channel.id, Date.now());
+		}
 
 		const audioFile = getFilePath(file);
 		console.info(`Playing audio: ${audioFile}`);
@@ -109,6 +141,7 @@ export async function playAudio(request: AudioRequest) {
 		if (request.seek) streamOptions.seek = request.seek;
 
 		const dispatcher = connection.play(audioFile, streamOptions);
+		activityLog.set(channel.id, Date.now());
 
 		dispatcher.on('start', () => {
 			console.log(`${file} is now playing!`);
@@ -121,25 +154,27 @@ export async function playAudio(request: AudioRequest) {
 			console.log('Finished playing!');
 
 			dispatcher.destroy(); // end the stream
+			return true;
 		});
 	}
 	catch (error) {
 		console.error(error);
+		return false;
 	}
 }
 
-export function disconnect() {
-	for (const channelId of bot.voice.connections.keys()) {
-		leaveVoiceChannel(channelId);
+export function disconnectAll() {
+	for (const connection of bot.voice.connections.values()) {
+		connection.disconnect();
 	}
+	activityLog.clear();
 }
 
 export function leaveVoiceChannel(id: string): void {
 	const channel = bot.voice.connections.get(id);
 	if (!channel) return null;
 
-	joinLog.delete(id);
-	channel.disconnect();
+	activityLog.delete(id);
 }
 
 export function shutdown() {
@@ -147,9 +182,8 @@ export function shutdown() {
 		console.info('Discord bot disconnected.');
 	});
 
-	disconnect();
+	disconnectAll();
 	bot.destroy();
 }
 
-if (!process.env.TOKEN) throw new Error('Invalid Discord Bot access token! (env vars)');
 bot.login(process.env.TOKEN);
